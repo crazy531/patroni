@@ -15,6 +15,7 @@ networks:
 services:
     etcd1: &etcd
         image: ${PATRONI_TEST_IMAGE:-patroni}
+        pull_policy: build
         networks: [ demo ]
         environment:
             ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
@@ -41,6 +42,7 @@ services:
 
     haproxy:
         image: ${PATRONI_TEST_IMAGE:-patroni}
+        pull_policy: build
         networks: [ demo ]
         env_file: docker/patroni.env
         hostname: haproxy
@@ -56,6 +58,7 @@ services:
 
     patroni1:
         image: ${PATRONI_TEST_IMAGE:-patroni}
+        pull_policy: build
         networks: [ demo ]
         env_file: docker/patroni.env
         hostname: patroni1
@@ -66,6 +69,7 @@ services:
 
     patroni2:
         image: ${PATRONI_TEST_IMAGE:-patroni}
+        pull_policy: build
         networks: [ demo ]
         env_file: docker/patroni.env
         hostname: patroni2
@@ -76,6 +80,7 @@ services:
 
     patroni3:
         image: ${PATRONI_TEST_IMAGE:-patroni}
+        pull_policy: build
         networks: [ demo ]
         env_file: docker/patroni.env
         hostname: patroni3
