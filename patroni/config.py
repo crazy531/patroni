@@ -293,6 +293,7 @@ class Config(object):
         if validator:  # patronictl uses validator=None and we don't want to load anything from local cache in this case
             self._load_cache()
         self._cache_needs_saving = False
+        self._validate_failover_tags()
 
     @property
     def config_file(self) -> Optional[str]:
@@ -790,7 +791,7 @@ class Config(object):
                               'SERVICE_TAGS', 'NAMESPACE', 'CONTEXT', 'USE_ENDPOINTS', 'SCOPE_LABEL', 'ROLE_LABEL',
                               'POD_IP', 'PORTS', 'LABELS', 'BYPASS_API_SERVICE', 'RETRIABLE_HTTP_CODES', 'KEY_PASSWORD',
                               'USE_SSL', 'SET_ACLS', 'GROUP', 'DATABASE', 'LEADER_LABEL_VALUE', 'FOLLOWER_LABEL_VALUE',
-                              'STANDBY_LEADER_LABEL_VALUE', 'TMP_ROLE_LABEL') and name:
+                              'STANDBY_LEADER_LABEL_VALUE', 'TMP_ROLE_LABEL', 'AUTH_DATA') and name:
                     value = os.environ.pop(param)
                     if name == 'CITUS':
                         if suffix == 'GROUP':
@@ -801,7 +802,7 @@ class Config(object):
                         value = value and parse_int(value)
                     elif suffix in ('HOSTS', 'PORTS', 'CHECKS', 'SERVICE_TAGS', 'RETRIABLE_HTTP_CODES'):
                         value = value and _parse_list(value)
-                    elif suffix in ('LABELS', 'SET_ACLS'):
+                    elif suffix in ('LABELS', 'SET_ACLS', 'AUTH_DATA'):
                         value = _parse_dict(value)
                     elif suffix in ('USE_PROXIES', 'REGISTER_SERVICE', 'USE_ENDPOINTS', 'BYPASS_API_SERVICE', 'VERIFY'):
                         value = parse_bool(value)
@@ -959,3 +960,24 @@ class Config(object):
         :returns: :class:`GlobalConfig` object.
         """
         return get_global_config(cluster, self._dynamic_configuration)
+
+    def _validate_failover_tags(self) -> None:
+        """Check ``nofailover``/``failover_priority`` config and warn user if it's contradictory.
+
+        .. note::
+          To preserve sanity (and backwards compatibility) the ``nofailover`` tag will still exist. A contradictory
+          configuration is one where ``nofailover`` is ``True`` but ``failover_priority > 0``, or where
+          ``nofailover`` is ``False``, but ``failover_priority <= 0``. Essentially, ``nofailover`` and
+          ``failover_priority`` are communicating different things.
+          This checks for this edge case (which is a misconfiguration on the part of the user) and warns them.
+          The behaviour is as if ``failover_priority`` were not provided (i.e ``nofailover`` is the
+          bedrock source of truth)
+        """
+        tags = self.get('tags', {})
+        nofailover_tag = tags.get('nofailover')
+        failover_priority_tag = parse_int(tags.get('failover_priority'))
+        if failover_priority_tag is not None \
+                and (nofailover_tag is True and failover_priority_tag > 0
+                     or nofailover_tag is False and failover_priority_tag <= 0):
+            logger.warning('Conflicting configuration between nofailover: %s and failover_priority: %s. '
+                           'Defaulting to nofailover: %s', nofailover_tag, failover_priority_tag, nofailover_tag)
